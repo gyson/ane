@@ -1,6 +1,8 @@
 defmodule Ane do
   @moduledoc """
-  Documentation for Ane.
+
+  An efficient way to share mutable data with `:atomics` and `:ets`.
+
   """
 
   @type atomics_ref() :: :atomics.atomics_ref()
@@ -15,12 +17,36 @@ defmodule Ane do
 
   @spec new(pos_integer(), keyword()) :: t()
 
-  def new(n, opts \\ []) do
-    read = Keyword.get(opts, :read_concurrency, false)
-    write = Keyword.get(opts, :write_concurrency, false)
+  @doc """
+
+  Create and return an Ane instance.
+
+  ## Options
+
+    * `:mode` (atom) - set mode of Ane instance. Default to `:ane`.
+    * `:read_concurrency` (boolean) - set read_concurrency for underneath ETS table. Default to `false`.
+    * `:write_concurrency` (boolean) - set write_concurrency for underneath ETS table. Default to `false`.
+    * `:compressed` (boolean) - set compressed for underneath ETS table. Default to `false`.
+
+  ## Example
+
+      iex> a = Ane.new(1, read_concurrency: false, write_concurrency: false, compressed: false)
+      iex> t = Ane.get_table(a)
+      iex> :ets.info(t, :read_concurrency)
+      false
+      iex> :ets.info(t, :write_concurrency)
+      false
+      iex> :ets.info(t, :compressed)
+      false
+
+  """
+
+  def new(size, options \\ []) do
+    read = Keyword.get(options, :read_concurrency, false)
+    write = Keyword.get(options, :write_concurrency, false)
 
     compressed =
-      case Keyword.get(opts, :compressed, false) do
+      case Keyword.get(options, :compressed, false) do
         true ->
           [:compressed]
 
@@ -28,7 +54,7 @@ defmodule Ane do
           []
       end
 
-    table_opts = [
+    table_options = [
       :set,
       :public,
       {:read_concurrency, read},
@@ -36,32 +62,38 @@ defmodule Ane do
       | compressed
     ]
 
-    case Keyword.get(opts, :mode, :ane) do
+    case Keyword.get(options, :mode, :ane) do
       :ane ->
-        a1 = :atomics.new(n, signed: false)
-        a2 = :atomics.new(n, signed: false)
-        e = :ets.new(:ane, table_opts)
+        a1 = :atomics.new(size, signed: false)
+        a2 = :atomics.new(size, signed: false)
+        e = :ets.new(__MODULE__, table_options)
 
         {e, a1, a2, %{}}
 
       :ets ->
-        e = :ets.new(:ets, table_opts)
+        e = :ets.new(__MODULE__, table_options)
 
-        {e, n}
+        {e, size}
     end
   end
 
-  @spec lookup(tid(), atomics_ref(), non_neg_integer(), non_neg_integer()) :: any()
+  @doc """
 
-  defp lookup(e, a2, i, version) do
-    case :ets.lookup(e, [i, version]) do
-      [{_, value}] ->
-        value
+  Get value at zero-based index in Ane instance.
 
-      [] ->
-        lookup(e, a2, i, :atomics.get(a2, i))
-    end
-  end
+  ## Example
+
+      iex> a = Ane.new(1)
+      iex> {a, value} = Ane.get(a, 0)
+      iex> value
+      nil
+      iex> Ane.put(a, 0, "hello")
+      :ok
+      iex> {_, value} = Ane.get(a, 0)
+      iex> value
+      "hello"
+
+  """
 
   @spec get(t(), non_neg_integer()) :: {t(), any()}
 
@@ -96,6 +128,53 @@ defmodule Ane do
     end
   end
 
+  @spec lookup(tid(), atomics_ref(), non_neg_integer(), non_neg_integer()) :: any()
+
+  defp lookup(e, a2, i, version) do
+    case :ets.lookup(e, [i, version]) do
+      [{_, value}] ->
+        value
+
+      [] ->
+        lookup(e, a2, i, :atomics.get(a2, i))
+    end
+  end
+
+  @doc """
+
+  Put value at zero-based index in Ane instance.
+
+  ## Example
+
+      iex> a = Ane.new(1)
+      iex> {a, value} = Ane.get(a, 0)
+      iex> value
+      nil
+      iex> Ane.put(a, 0, "world")
+      :ok
+      iex> {_, value} = Ane.get(a, 0)
+      iex> value
+      "world"
+
+  """
+
+  @spec put(t(), non_neg_integer(), any()) :: :ok
+
+  def put({e, a1, a2, _} = _ane, i, value) do
+    i = i + 1
+
+    new_version = :atomics.add_get(a1, i, 1)
+
+    :ets.insert(e, {[i, new_version], value})
+
+    commit(e, a2, i, new_version - 1, new_version)
+  end
+
+  def put({e, n} = _ane, i, value) when is_integer(i) and i >= 0 and i < n do
+    :ets.insert(e, {i, value})
+    :ok
+  end
+
   @spec commit(tid(), atomics_ref(), non_neg_integer(), non_neg_integer(), non_neg_integer()) ::
           :ok
 
@@ -114,28 +193,34 @@ defmodule Ane do
     end
   end
 
-  @spec put(t(), non_neg_integer(), any()) :: :ok
+  @doc """
 
-  def put({e, a1, a2, _}, i, value) do
-    i = i + 1
+  Clear garbage data which could be generated when `Ane.put` is interrupted.
 
-    new_version = :atomics.add_get(a1, i, 1)
+  ## Example
 
-    :ets.insert(e, {[i, new_version], value})
+      iex> a = Ane.new(1)
+      iex> Ane.clear(a)
+      :ok
 
-    commit(e, a2, i, new_version - 1, new_version)
-  end
+  """
 
-  def put({e, n}, i, value) when is_integer(i) and i >= 0 and i < n do
-    :ets.insert(e, {i, value})
+  @spec clear(t()) :: :ok
+
+  def clear({e, _, a2, _} = _ane) do
+    :ets.safe_fixtable(e, true)
+    clear_table(e, a2, %{}, :ets.first(e))
+    :ets.safe_fixtable(e, false)
     :ok
   end
 
-  @spec clean_table(tid(), atomics_ref(), map(), any()) :: :ok
+  def clear({_, _} = _ane), do: :ok
 
-  defp clean_table(_, _, _, :"$end_of_table"), do: :ok
+  @spec clear_table(tid(), atomics_ref(), map(), any()) :: :ok
 
-  defp clean_table(e, a2, cache, [i, version] = key) do
+  defp clear_table(_, _, _, :"$end_of_table"), do: :ok
+
+  defp clear_table(e, a2, cache, [i, version] = key) do
     {updated_cache, current_version} =
       case cache do
         %{^i => v} ->
@@ -150,32 +235,66 @@ defmodule Ane do
       :ets.delete(e, key)
     end
 
-    clean_table(e, a2, updated_cache, :ets.next(e, key))
+    clear_table(e, a2, updated_cache, :ets.next(e, key))
   end
 
-  @spec clean(t()) :: :ok
+  @doc """
 
-  def clean({e, _, a2, _}) do
-    :ets.safe_fixtable(e, true)
-    clean_table(e, a2, %{}, :ets.first(e))
-    :ets.safe_fixtable(e, false)
-    :ok
-  end
+  Get mode of Ane instance.
 
-  def clean({_, _}), do: :ok
+  ## Example
+
+      iex> Ane.new(1) |> Ane.get_mode()
+      :ane
+      iex> Ane.new(1, mode: :ane) |> Ane.get_mode()
+      :ane
+      iex> Ane.new(1, mode: :ets) |> Ane.get_mode()
+      :ets
+
+  """
 
   @spec get_mode(t()) :: :ane | :ets
 
-  def get_mode({_, _, _, _}), do: :ane
-  def get_mode({_, _}), do: :ets
+  def get_mode({_, _, _, _} = _ane), do: :ane
+  def get_mode({_, _} = _ane), do: :ets
+
+  @doc """
+
+  Get size of Ane instance.
+
+  ## Example
+
+      iex> Ane.new(1) |> Ane.get_size()
+      1
+      iex> Ane.new(10) |> Ane.get_size()
+      10
+
+  """
 
   @spec get_size(t()) :: pos_integer()
 
-  def get_size({_, _, a2, _}), do: :atomics.info(a2).size
-  def get_size({_, n}), do: n
+  def get_size({_, _, a2, _} = _ane), do: :atomics.info(a2).size
+  def get_size({_, n} = _ane), do: n
 
-  @spec get_table(t()) :: :ets.tid()
+  @doc """
 
-  def get_table({e, _, _, _}), do: e
-  def get_table({e, _}), do: e
+  Get ETS table of Ane instance.
+
+  The returned ETS table could be used to
+
+    * get more info via `:ets.info`
+    * change ownership via `:ets.give_away`
+    * change configuration via `:ets.setopts`
+
+  ## Example
+
+      iex> Ane.new(1) |> Ane.get_table() |> :ets.info(:type)
+      :set
+
+  """
+
+  @spec get_table(t()) :: tid()
+
+  def get_table({e, _, _, _} = _ane), do: e
+  def get_table({e, _} = _ane), do: e
 end
