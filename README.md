@@ -1,6 +1,8 @@
 # Ane
 
-Ane (atomics and ets) is a library to share mutable data efficiently by utilizing atomics and ets modules.
+Ane (atomics and ets) is a library to share mutable data efficiently by
+utilizing [atomics](http://erlang.org/doc/man/atomics.html) and
+[ets](http://erlang.org/doc/man/ets.html) modules.
 
 ## How it works ?
 
