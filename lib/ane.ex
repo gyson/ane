@@ -15,8 +15,6 @@ defmodule Ane do
 
   @type t() :: t_for_ane_mode() | t_for_ets_mode()
 
-  @spec new(pos_integer(), keyword()) :: t()
-
   @doc """
 
   Create and return an Ane instance.
@@ -40,6 +38,8 @@ defmodule Ane do
       false
 
   """
+
+  @spec new(pos_integer(), keyword()) :: t()
 
   def new(size, options \\ []) do
     read = Keyword.get(options, :read_concurrency, false)
@@ -79,27 +79,25 @@ defmodule Ane do
 
   @doc """
 
-  Get value at zero-based index in Ane instance.
+  Get value at one-based index in Ane instance.
 
   ## Example
 
       iex> a = Ane.new(1)
-      iex> {a, value} = Ane.get(a, 0)
+      iex> {a, value} = Ane.get(a, 1)
       iex> value
       nil
-      iex> Ane.put(a, 0, "hello")
+      iex> Ane.put(a, 1, "hello")
       :ok
-      iex> {_, value} = Ane.get(a, 0)
+      iex> {_, value} = Ane.get(a, 1)
       iex> value
       "hello"
 
   """
 
-  @spec get(t(), non_neg_integer()) :: {t(), any()}
+  @spec get(t(), pos_integer()) :: {t(), any()}
 
   def get({e, a1, a2, cache} = ane, i) do
-    i = i + 1
-
     case :atomics.get(a2, i) do
       0 ->
         {ane, nil}
@@ -121,7 +119,7 @@ defmodule Ane do
     end
   end
 
-  def get({e, n} = ane, i) when is_integer(i) and i >= 0 and i < n do
+  def get({e, size} = ane, i) when is_integer(i) and i > 0 and i <= size do
     case :ets.lookup(e, i) do
       [{_, value}] ->
         {ane, value}
@@ -130,8 +128,6 @@ defmodule Ane do
         {ane, nil}
     end
   end
-
-  @spec lookup(tid(), atomics_ref(), non_neg_integer(), non_neg_integer()) :: any()
 
   defp lookup(e, a2, i, version) do
     case :ets.lookup(e, [i, version]) do
@@ -145,27 +141,25 @@ defmodule Ane do
 
   @doc """
 
-  Put value at zero-based index in Ane instance.
+  Put value at one-based index in Ane instance.
 
   ## Example
 
       iex> a = Ane.new(1)
-      iex> {a, value} = Ane.get(a, 0)
+      iex> {a, value} = Ane.get(a, 1)
       iex> value
       nil
-      iex> Ane.put(a, 0, "world")
+      iex> Ane.put(a, 1, "world")
       :ok
-      iex> {_, value} = Ane.get(a, 0)
+      iex> {_, value} = Ane.get(a, 1)
       iex> value
       "world"
 
   """
 
-  @spec put(t(), non_neg_integer(), any()) :: :ok
+  @spec put(t(), pos_integer(), any()) :: :ok
 
   def put({e, a1, a2, _} = _ane, i, value) do
-    i = i + 1
-
     case :atomics.add_get(a1, i, 1) do
       new_version when new_version > 0 ->
         :ets.insert(e, {[i, new_version], value})
@@ -176,13 +170,10 @@ defmodule Ane do
     end
   end
 
-  def put({e, n} = _ane, i, value) when is_integer(i) and i >= 0 and i < n do
+  def put({e, size} = _ane, i, value) when is_integer(i) and i > 0 and i <= size do
     :ets.insert(e, {i, value})
     :ok
   end
-
-  @spec commit(tid(), atomics_ref(), non_neg_integer(), non_neg_integer(), non_neg_integer()) ::
-          :ok
 
   defp commit(e, a2, i, expected, desired) do
     case :atomics.compare_exchange(a2, i, expected, desired) do
@@ -221,8 +212,6 @@ defmodule Ane do
   end
 
   def clear({_, _} = _ane), do: :ok
-
-  @spec clear_table(tid(), atomics_ref(), map(), any()) :: :ok
 
   defp clear_table(_, _, _, :"$end_of_table"), do: :ok
 
@@ -339,7 +328,7 @@ defmodule Ane do
   @spec get_size(t()) :: pos_integer()
 
   def get_size({_, _, a2, _} = _ane), do: :atomics.info(a2).size
-  def get_size({_, n} = _ane), do: n
+  def get_size({_, size} = _ane), do: size
 
   @doc """
 
