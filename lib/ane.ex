@@ -3,6 +3,7 @@ defmodule Ane do
 
   A very efficient way to share mutable data with `:atomics` and `:ets`.
 
+  [https://github.com/gyson/ane](https://github.com/gyson/ane) has detailed guides.
   """
 
   @type atomics_ref() :: :atomics.atomics_ref()
