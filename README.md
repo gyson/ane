@@ -7,6 +7,8 @@ Ane (atomics and ets) is a library to share mutable data efficiently by utilizin
 * It stores all data with versionstamp in ETS table.
 * It keeps a cached copy with versionstamp locally.
 * It uses atomics to save latest versionstamp and syncs data between ETS table and local cache.
+* Read operation would use cached data if cache hits and fallback to ETS lookup if cache expires.
+* Write operation would update ETS table and versionstamp in atomics array.
 
 ## Properties
 
@@ -43,6 +45,10 @@ Compare to ETS standalone,
 
   - ETS table performance degrades when a key is too hot due to internal locking.
   - Ane avoids "hot key" issue by distributing read/write operations to different keys in underneath ETS table.
+
+* Ane only supports `:atomics`-like one-based index as key.
+
+  - I feel it's possible to extend it to be `:ets`-like arbitrary key with some extra complexity. But I do not have that need at the moment.
 
 ## Installation
 
