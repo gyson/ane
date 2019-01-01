@@ -64,8 +64,8 @@ defmodule Ane do
 
     case Keyword.get(options, :mode, :ane) do
       :ane ->
-        a1 = :atomics.new(size, signed: false)
-        a2 = :atomics.new(size, signed: false)
+        a1 = :atomics.new(size, signed: true)
+        a2 = :atomics.new(size, signed: true)
         e = :ets.new(__MODULE__, table_options)
 
         {e, a1, a2, %{}}
@@ -104,7 +104,7 @@ defmodule Ane do
       0 ->
         {ane, nil}
 
-      version ->
+      version when version > 0 ->
         case cache do
           # cache hit
           %{^i => {^version, value}} ->
@@ -115,6 +115,9 @@ defmodule Ane do
             value = lookup(e, a2, i, version)
             {{e, a1, a2, Map.put(cache, i, {version, value})}, value}
         end
+
+      _ ->
+        raise ArgumentError, "Ane instance is destroyed"
     end
   end
 
@@ -163,11 +166,14 @@ defmodule Ane do
   def put({e, a1, a2, _} = _ane, i, value) do
     i = i + 1
 
-    new_version = :atomics.add_get(a1, i, 1)
+    case :atomics.add_get(a1, i, 1) do
+      new_version when new_version > 0 ->
+        :ets.insert(e, {[i, new_version], value})
+        commit(e, a2, i, new_version - 1, new_version)
 
-    :ets.insert(e, {[i, new_version], value})
-
-    commit(e, a2, i, new_version - 1, new_version)
+      _ ->
+        raise ArgumentError, "Ane instance is destroyed"
+    end
   end
 
   def put({e, n} = _ane, i, value) when is_integer(i) and i >= 0 and i < n do
@@ -237,6 +243,65 @@ defmodule Ane do
 
     clear_table(e, a2, updated_cache, :ets.next(e, key))
   end
+
+  @doc """
+
+  Destroy an Ane instance.
+
+
+  ## Example
+
+      iex> a = Ane.new(1)
+      iex> Ane.destroyed?(a)
+      false
+      iex> Ane.destroy(a)
+      :ok
+      iex> Ane.destroyed?(a)
+      true
+
+  """
+
+  @spec destroy(t()) :: :ok
+
+  def destroy({e, a1, a2, _} = ane) do
+    # min for 64 bits signed number
+    min = -9_223_372_036_854_775_808
+
+    1..get_size(ane)
+    |> Enum.each(fn i ->
+      :atomics.put(a1, i, min)
+      :atomics.put(a2, i, min)
+    end)
+
+    :ets.delete(e)
+    :ok
+  end
+
+  def destroy({e, _} = _ane) do
+    :ets.delete(e)
+    :ok
+  end
+
+  @doc """
+
+  Check if Ane instance is destroyed.
+
+  ## Example
+
+      iex> a = Ane.new(1)
+      iex> Ane.destroyed?(a)
+      false
+      iex> Ane.destroy(a)
+      :ok
+      iex> Ane.destroyed?(a)
+      true
+
+  """
+
+  @spec destroyed?(t()) :: boolean()
+
+  def destroyed?({e, _, _, _}), do: :ets.info(e, :type) == :undefined
+  def destroyed?({e, _}), do: :ets.info(e, :type) == :undefined
 
   @doc """
 
