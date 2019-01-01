@@ -1,7 +1,7 @@
 defmodule Ane do
   @moduledoc """
 
-  An efficient way to share mutable data with `:atomics` and `:ets`.
+  A very efficient way to share mutable data with `:atomics` and `:ets`.
 
   """
 
@@ -99,9 +99,6 @@ defmodule Ane do
 
   def get({e, a1, a2, cache} = ane, i) do
     case :atomics.get(a2, i) do
-      0 ->
-        {ane, nil}
-
       version when version > 0 ->
         case cache do
           # cache hit
@@ -113,6 +110,9 @@ defmodule Ane do
             value = lookup(e, a2, i, version)
             {{e, a1, a2, Map.put(cache, i, {version, value})}, value}
         end
+
+      0 ->
+        {ane, nil}
 
       _ ->
         raise ArgumentError, "Ane instance is destroyed"
@@ -289,8 +289,8 @@ defmodule Ane do
 
   @spec destroyed?(t()) :: boolean()
 
-  def destroyed?({e, _, _, _}), do: :ets.info(e, :type) == :undefined
-  def destroyed?({e, _}), do: :ets.info(e, :type) == :undefined
+  def destroyed?({e, _, _, _} = _ane), do: :ets.info(e, :type) == :undefined
+  def destroyed?({e, _} = _ane), do: :ets.info(e, :type) == :undefined
 
   @doc """
 
