@@ -128,6 +128,74 @@ ane = Ane.new(1, read_concurrency: true, write_concurrency: true)
 
 These options would be passed to underneath ETS table. You can read more docs about `read_concurrency` and `write_concurrency` at [erlang ets docs](http://erlang.org/doc/man/ets.html#new-2).
 
+## Benchmarking
+
+Benchmarking script is available at `bench/comparison.exs`.
+
+Following is the benchmarking result for comparing Ane and ETS standalone with 90% read operations and 10% write operations:
+
+```
+$ mix run bench/comparison.exs
+Operating System: macOS"
+CPU Information: Intel(R) Core(TM) i7-3720QM CPU @ 2.60GHz
+Number of Available Cores: 8
+Available memory: 16 GB
+Elixir 1.7.4
+Erlang 21.2
+
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 10 s
+memory time: 0 μs
+parallel: 16
+inputs: none specified
+Estimated total run time: 24 s
+
+
+Benchmarking size=16, mode=ane, Ane.get=90%, Ane.put=10.0%,  read_concurrency=true, write_concurrency=true, info_size=100...
+Benchmarking size=16, mode=ets, Ane.get=90%, Ane.put=10.0%,  read_concurrency=true, write_concurrency=true, info_size=100...
+
+Name                                                                                                                   ips        average  deviation         median         99th %
+size=16, mode=ane, Ane.get=90%, Ane.put=10.0%,  read_concurrency=true, write_concurrency=true, info_size=100         26.76       37.37 ms    ±37.32%       36.79 ms       72.50 ms
+size=16, mode=ets, Ane.get=90%, Ane.put=10.0%,  read_concurrency=true, write_concurrency=true, info_size=100          9.66      103.55 ms    ±37.82%       98.66 ms      187.74 ms
+
+Comparison:
+size=16, mode=ane, Ane.get=90%, Ane.put=10.0%,  read_concurrency=true, write_concurrency=true, info_size=100         26.76
+size=16, mode=ets, Ane.get=90%, Ane.put=10.0%,  read_concurrency=true, write_concurrency=true, info_size=100          9.66 - 2.77x slower
+```
+
+Following is the benchamrking result for comparing Ane and ETS standalone for "hot key" issue:
+
+```
+$ mix run bench/comparison.exs
+Operating System: macOS"
+CPU Information: Intel(R) Core(TM) i7-3720QM CPU @ 2.60GHz
+Number of Available Cores: 8
+Available memory: 16 GB
+Elixir 1.7.4
+Erlang 21.2
+
+Benchmark suite executing with the following configuration:
+warmup: 2 s
+time: 10 s
+memory time: 0 μs
+parallel: 16
+inputs: none specified
+Estimated total run time: 24 s
+
+
+Benchmarking size=1, mode=ane, Ane.get=90%, Ane.put=10.0%,  read_concurrency=true, write_concurrency=true, info_size=100...
+Benchmarking size=1, mode=ets, Ane.get=90%, Ane.put=10.0%,  read_concurrency=true, write_concurrency=true, info_size=100...
+
+Name                                                                                                                  ips        average  deviation         median         99th %
+size=1, mode=ane, Ane.get=90%, Ane.put=10.0%,  read_concurrency=true, write_concurrency=true, info_size=100         27.03       37.00 ms    ±45.40%       36.15 ms       71.12 ms
+size=1, mode=ets, Ane.get=90%, Ane.put=10.0%,  read_concurrency=true, write_concurrency=true, info_size=100          1.33      754.31 ms    ±25.91%      762.88 ms     1212.87 ms
+
+Comparison:
+size=1, mode=ane, Ane.get=90%, Ane.put=10.0%,  read_concurrency=true, write_concurrency=true, info_size=100         27.03
+size=1, mode=ets, Ane.get=90%, Ane.put=10.0%,  read_concurrency=true, write_concurrency=true, info_size=100          1.33 - 20.39x slower
+```
+
 ## Handling Garbabge Data in Underneath ETS table
 
 Write operation (`Ane.put`) includes one `:ets.insert` operation and one `:ets.delete` operation.
