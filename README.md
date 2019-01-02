@@ -56,7 +56,7 @@ Compare to ETS standalone,
 
 **Note**: it requires OTP 21.2 for `:atomics`, which was released on Dec 12, 2018.
 
-It can be installed by adding Ane to your list of dependencies in `mix.exs`:
+It can be installed by adding `:ane` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
@@ -127,6 +127,13 @@ ane = Ane.new(1, read_concurrency: true, write_concurrency: true)
 ```
 
 These options would be passed to underneath ETS table. You can read more docs about `read_concurrency` and `write_concurrency` at [erlang ets docs](http://erlang.org/doc/man/ets.html#new-2).
+
+## Handling Garbabge Data in Underneath ETS table
+
+Write operation (`Ane.put`) includes one `:ets.insert` operation and one `:ets.delete` operation.
+When the process running `Ane.put` is interrupted (e.g. by `:erlang.exit(pid, :kill)`), garbage
+data could be generated if it finished insert operation but did not start delete operation. These
+garbabge data could be removed by calling `Ane.clear` (periodically if it needs to handle constantly interruptions).
 
 ## License
 

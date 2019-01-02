@@ -1,9 +1,9 @@
 defmodule Ane do
   @moduledoc """
 
-  A very efficient way to share mutable data with `:atomics` and `:ets`.
+  A very efficient way to share mutable data by utilizing `:atomics` and `:ets` modules.
 
-  [https://github.com/gyson/ane](https://github.com/gyson/ane) has detailed guides.
+  [github.com/gyson/ane](https://github.com/gyson/ane) has detailed guides.
   """
 
   @type atomics_ref() :: :atomics.atomics_ref()
@@ -82,6 +82,14 @@ defmodule Ane do
 
   Get value at one-based index in Ane instance.
 
+  It returns a tuple with two elements:
+
+    * First element is new Ane instance which includes latest cached data.
+
+      - Note: we need to use this returned new Ane instance for following read operations to make cache work properly.
+
+    * Second element is the value at one-based index. Value is initialized as `nil` by default.
+
   ## Example
 
       iex> a = Ane.new(1)
@@ -143,6 +151,14 @@ defmodule Ane do
   @doc """
 
   Put value at one-based index in Ane instance.
+
+  It would always return `:ok`.
+
+  `Ane.put` includes one `:ets.insert` operation and one `:ets.delete`
+  operation. When the process running `Ane.put` is interrupted (e.g. by
+  `:erlang.exit(pid, :kill)`), garbage data could be generated if it
+  finished insert operation but did not start delete operation. These
+  garbabge data could be removed by `Ane.clear`.
 
   ## Example
 
