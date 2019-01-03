@@ -52,6 +52,12 @@ Compare to ETS standalone,
 
   - I feel it's possible to extend it to be `:ets`-like arbitrary key with some extra complexity. But I do not have that need at the moment.
 
+Compare to [persistent_term](http://erlang.org/doc/man/persistent_term.html),
+
+* Like persistent_term, Ane's read operation is lock-free and copy-free when cache hits.
+
+* Unlike persistent_term, Ane's write operation is fast and won't trigger global GC.
+
 ## Installation
 
 **Note**: it requires OTP 21.2 for `:atomics`, which was released on Dec 12, 2018.
