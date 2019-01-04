@@ -4,7 +4,7 @@ defmodule Ane.MixProject do
   def project do
     [
       app: :ane,
-      version: "0.1.0",
+      version: "0.1.1",
       description: "A very efficient way to share mutable data with :atomics and :ets",
       elixir: "~> 1.7",
       start_permanent: Mix.env() == :prod,
