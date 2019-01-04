@@ -116,8 +116,8 @@ defmodule Ane do
 
           # cache miss
           _ ->
-            value = lookup(e, a2, i, version)
-            {{e, a1, a2, Map.put(cache, i, {version, value})}, value}
+            {_, value} = updated = lookup(e, a2, i, version)
+            {{e, a1, a2, Map.put(cache, i, updated)}, value}
         end
 
       0 ->
@@ -141,7 +141,7 @@ defmodule Ane do
   defp lookup(e, a2, i, version) do
     case :ets.lookup(e, [i, version]) do
       [{_, value}] ->
-        value
+        {version, value}
 
       [] ->
         lookup(e, a2, i, :atomics.get(a2, i))
