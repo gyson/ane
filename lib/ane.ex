@@ -16,6 +16,8 @@ defmodule Ane do
 
   @type t() :: t_for_ane_mode() | t_for_ets_mode()
 
+  @destroyed_message "Ane instance is destroyed"
+
   @doc """
 
   Create and return an Ane instance.
@@ -124,7 +126,7 @@ defmodule Ane do
         {ane, nil}
 
       _ ->
-        raise ArgumentError, "Ane instance is destroyed"
+        raise ArgumentError, @destroyed_message
     end
   end
 
@@ -144,7 +146,13 @@ defmodule Ane do
         {version, value}
 
       [] ->
-        lookup(e, a2, i, :atomics.get(a2, i))
+        case :atomics.get(a2, i) do
+          new_version when new_version > 0 ->
+            lookup(e, a2, i, new_version)
+
+          _ ->
+            raise ArgumentError, @destroyed_message
+        end
     end
   end
 
@@ -183,7 +191,7 @@ defmodule Ane do
         commit(e, a2, i, new_version - 1, new_version)
 
       _ ->
-        raise ArgumentError, "Ane instance is destroyed"
+        raise ArgumentError, @destroyed_message
     end
   end
 
@@ -197,6 +205,9 @@ defmodule Ane do
       :ok ->
         :ets.delete(e, [i, expected])
         :ok
+
+      actual when actual < 0 ->
+        raise ArgumentError, @destroyed_message
 
       actual when actual < desired ->
         commit(e, a2, i, actual, desired)
@@ -253,7 +264,6 @@ defmodule Ane do
   @doc """
 
   Destroy an Ane instance.
-
 
   ## Example
 
