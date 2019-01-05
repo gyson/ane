@@ -54,7 +54,9 @@ Compare to ETS standalone,
 
 Compare to [persistent_term](http://erlang.org/doc/man/persistent_term.html),
 
-* Like persistent_term, Ane's read operation is lock-free and copy-free when cache hits.
+* Like persistent_term, Ane's read operation with cache hit is lock-free and copying-free (no need to copy since data exists in local cache).
+
+* Unlike persistent_term, Ane's read operation with cache miss/expire would require copy data from ETS table to the heap of current process.
 
 * Unlike persistent_term, Ane's write operation is fast and won't trigger global GC.
 
