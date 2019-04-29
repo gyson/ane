@@ -211,6 +211,16 @@ When the process running `Ane.put` is interrupted (e.g. by `:erlang.exit(pid, :k
 data could be generated if it finished insert operation but did not start delete operation. These
 garbabge data could be removed by calling `Ane.clear` (periodically if it needs to handle constantly interruptions).
 
+## Development Note
+
+```sh
+# type check with dialyzer
+mix dialyzer
+
+# type check with ex_type
+mix type
+```
+
 ## License
 
 MIT

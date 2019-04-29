@@ -8,7 +8,7 @@ defmodule Ane do
 
   @type atomics_ref() :: :atomics.atomics_ref()
 
-  @type tid() :: :ets.tid()
+  @type tid() :: :ets.tid() | atom()
 
   @type t_for_ane_mode() :: {tid(), atomics_ref(), atomics_ref(), map()}
 
@@ -140,6 +140,8 @@ defmodule Ane do
     end
   end
 
+  @spec lookup(tid(), atomics_ref(), pos_integer(), integer()) :: {integer(), any()}
+
   defp lookup(e, a2, i, version) do
     case :ets.lookup(e, [i, version]) do
       [{_, value}] ->
@@ -200,6 +202,8 @@ defmodule Ane do
     :ok
   end
 
+  @spec commit(tid(), atomics_ref(), pos_integer(), integer(), integer()) :: :ok
+
   defp commit(e, a2, i, expected, desired) do
     case :atomics.compare_exchange(a2, i, expected, desired) do
       :ok ->
@@ -240,6 +244,8 @@ defmodule Ane do
   end
 
   def clear({_, _} = _ane), do: :ok
+
+  @spec clear_table(tid(), atomics_ref(), map(), any()) :: :ok
 
   defp clear_table(_, _, _, :"$end_of_table"), do: :ok
 
